@@ -13,10 +13,10 @@ jobs:
     defaults:
       run:
         working-directory: ./API
-    
+
     outputs:
       version: ${{ steps.version.outputs.version }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -58,7 +58,6 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
     steps:
       - name: Deploy to Render
         run: |
@@ -66,3 +65,24 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{"clearCache": true}'
+
+  notify_failure:
+    needs: [ci, cd]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send email on failure
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT }}
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "🚨 [${{ github.repository }}] Falha no pipeline CI/CD"
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.EMAIL_FROM }}
+          body: |
+            O pipeline CI/CD falhou no repositório ${{ github.repository }}!
+            Branch: ${{ github.ref }}
+            Commit: ${{ github.sha }}
+            Veja detalhes em: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
