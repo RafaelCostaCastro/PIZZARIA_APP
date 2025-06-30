@@ -26,9 +26,9 @@ jobs:
           cache-dependency-path: ./API/package-lock.json
 
       # Opcional: limpar node_modules
-      # - name: Clean node_modules
-      #   run: rm -rf node_modules
-      #   working-directory: ./API
+      - name: Clean node_modules
+        run: rm -rf node_modules
+        working-directory: ./API
 
       - name: Install dependencies
         run: npm install
