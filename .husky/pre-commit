@@ -1,0 +1,1 @@
+npm --prefix API run lint && npm --prefix API test
