@@ -15,7 +15,7 @@ jobs:
         working-directory: ./API
 
     outputs:
-      version: ${{ steps.package-version.outputs.current-version }}
+      version: ${{ steps.package_version.outputs.current-version }}
 
     steps:
       - name: Checkout code
@@ -36,10 +36,20 @@ jobs:
         run: npm run lint
 
       - name: Get version from package.json
-        id: package-version
+        id: package_version
         uses: martinbeentjes/npm-get-version-action@v1.3.1
         with:
           path: ./API/package.json
+
+      - name: Show version for debug
+        run: echo "Package version is ${{ steps.package_version.outputs.current-version }}"
+
+      - name: Fail if version is empty
+        run: |
+          if [ -z "${{ steps.package_version.outputs.current-version }}" ]; then
+            echo "ERROR: Version not found in package.json!"
+            exit 1
+          fi
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -53,7 +63,7 @@ jobs:
           context: ./API
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.package-version.outputs.current-version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.package_version.outputs.current-version }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
   cd:
