@@ -4,11 +4,17 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
-const { logtail, logStream } = require('./logStream'); // Importação do novo módulo
-const sql = require('./db');
+const { logtail, logStream } = require('./logStream');
+const { Pool } = require('pg'); // Alterado para pg
 const { swaggerUi, swaggerSpec } = require('./swagger');
 
 const app = express();
+
+// Configuração do pool do PostgreSQL
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -36,6 +42,16 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
  *           example: disponível
  */
 
+// Helper para execução de queries
+const query = async (text, params) => {
+  const client = await pool.connect();
+  try {
+    return await client.query(text, params);
+  } finally {
+    client.release();
+  }
+};
+
 /**
  * @swagger
  * /produtos:
@@ -54,8 +70,8 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
  */
 app.get('/produtos', async (req, res, next) => {
   try {
-    const produtos = await sql`SELECT * FROM "PIZZARIA_APP".produtos ORDER BY id ASC`;
-    res.json(produtos);
+    const result = await query('SELECT * FROM "PIZZARIA_APP".produtos ORDER BY id ASC');
+    res.json(result.rows);
   } catch (err) {
     next(err);
   }
@@ -87,9 +103,9 @@ app.get('/produtos', async (req, res, next) => {
 app.get('/produtos/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const [produto] = await sql`SELECT * FROM "PIZZARIA_APP".produtos WHERE id = ${id}`;
-    if (!produto) return res.status(404).json({ error: "Produto não encontrado" });
-    res.json(produto);
+    const result = await query('SELECT * FROM "PIZZARIA_APP".produtos WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
+    res.json(result.rows[0]);
   } catch (err) {
     next(err);
   }
@@ -130,11 +146,13 @@ app.post('/produtos', async (req, res, next) => {
   try {
     const { descricao, status } = req.body;
     if (!descricao) return res.status(400).json({ error: "Descrição obrigatória" });
-    const [novoProduto] = await sql`
-      INSERT INTO "PIZZARIA_APP".produtos (descricao, status)
-      VALUES (${descricao}, ${status || 'disponível'})
-      RETURNING *`;
-    res.status(201).json(novoProduto);
+    
+    const result = await query(
+      'INSERT INTO "PIZZARIA_APP".produtos (descricao, status) VALUES ($1, $2) RETURNING *',
+      [descricao, status || 'disponível']
+    );
+    
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
   }
@@ -180,15 +198,23 @@ app.put('/produtos/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const { descricao, status } = req.body;
-    const [produto] = await sql`SELECT * FROM "PIZZARIA_APP".produtos WHERE id = ${id}`;
-    if (!produto) return res.status(404).json({ error: "Produto não encontrado" });
-    const [atualizado] = await sql`
-      UPDATE "PIZZARIA_APP".produtos
-      SET descricao = ${descricao || produto.descricao},
-          status = ${status || produto.status}
-      WHERE id = ${id}
-      RETURNING *`;
-    res.json(atualizado);
+    
+    // Verifica se o produto existe
+    const checkResult = await query('SELECT * FROM "PIZZARIA_APP".produtos WHERE id = $1', [id]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+    
+    const result = await query(
+      `UPDATE "PIZZARIA_APP".produtos 
+       SET descricao = COALESCE($1, descricao),
+           status = COALESCE($2, status)
+       WHERE id = $3
+       RETURNING *`,
+      [descricao, status, id]
+    );
+    
+    res.json(result.rows[0]);
   } catch (err) {
     next(err);
   }
@@ -216,9 +242,14 @@ app.put('/produtos/:id', async (req, res, next) => {
 app.delete('/produtos/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const [produto] = await sql`SELECT * FROM "PIZZARIA_APP".produtos WHERE id = ${id}`;
-    if (!produto) return res.status(404).json({ error: "Produto não encontrado" });
-    await sql`DELETE FROM "PIZZARIA_APP".produtos WHERE id = ${id}`;
+    
+    // Verifica se o produto existe
+    const checkResult = await query('SELECT * FROM "PIZZARIA_APP".produtos WHERE id = $1', [id]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+    
+    await query('DELETE FROM "PIZZARIA_APP".produtos WHERE id = $1', [id]);
     res.status(204).send();
   } catch (err) {
     next(err);

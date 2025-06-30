@@ -3,6 +3,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main, develop]
+    tags: ["v*"]
 
 env:
   IMAGE_NAME: pizzaria-api
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      version: ${{ steps.package_version.outputs.current-version }}
+      version: ${{ steps.docker_tag.outputs.tag }}
 
     steps:
       - name: Checkout code
@@ -60,13 +61,23 @@ jobs:
         with:
           path: ./API
 
+      - name: Set Docker tag
+        id: docker_tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ steps.package_version.outputs.current-version }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Show version for debug
-        run: echo "Package version is ${{ steps.package_version.outputs.current-version }}"
+        run: echo "Docker tag is ${{ steps.docker_tag.outputs.tag }}"
 
       - name: Fail if version is empty
         run: |
-          if [ -z "${{ steps.package_version.outputs.current-version }}" ]; then
-            echo "ERROR: Version not found in package.json!"
+          if [ -z "${{ steps.docker_tag.outputs.tag }}" ]; then
+            echo "ERROR: Tag not found!"
             exit 1
           fi
 
@@ -82,20 +93,27 @@ jobs:
           context: ./API
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.package_version.outputs.current-version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.docker_tag.outputs.tag }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
   cd:
     needs: ci
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: |
+      github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Deploy to Render
+      - name: Deploy to Render (main or tag)
         run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ needs.ci.outputs.version }}"
+          fi
+          echo "Deploying image with tag: $TAG"
           curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{"clearCache": true}'
+            -d "{\"clearCache\": true, \"imageUrl\": \"${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:$TAG\"}"
 
   notify_failure:
     needs: [ci, cd]
@@ -114,6 +132,6 @@ jobs:
           from: ${{ secrets.EMAIL_FROM }}
           body: |
             O pipeline CI/CD falhou no repositório ${{ github.repository }}!
-            Branch: ${{ github.ref }}
+            Branch/Tag: ${{ github.ref }}
             Commit: ${{ github.sha }}
             Veja detalhes em: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

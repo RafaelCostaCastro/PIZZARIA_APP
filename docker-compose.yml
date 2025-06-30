@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Banco de dados PostgreSQL
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: pizzauser
+      POSTGRES_PASSWORD: pizzapassword
+      POSTGRES_DB: pizzadb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:  
+      test: ["CMD-SHELL", "pg_isready -U pizzauser -d pizzadb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Node.js
+  backend:
+    build:
+      context: ./API
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy  # Só inicia quando db estiver saudável
+    environment:
+      DATABASE_URL: "postgres://pizzauser:pizzapassword@db:5432/pizzadb?sslmode=disable"
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./API:/app           
+      
+    command: npm run dev     
+
+volumes:
+  pgdata: # Volume persistente para o PostgreSQL
