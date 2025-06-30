@@ -1,0 +1,17 @@
+{
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "@eslint/js": "^9.30.0",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^9.30.0",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.2.0",
+    "husky": "^9.1.7"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}
