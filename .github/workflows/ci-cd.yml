@@ -18,6 +18,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: List files after checkout
+        run: ls -lR
+
+      - name: Check package.json presence
+        run: |
+          if [ ! -f ./API/package.json ]; then
+            echo "ERROR: ./API/package.json NOT FOUND!"
+            exit 1
+          else
+            echo "Found ./API/package.json"
+            cat ./API/package.json
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -25,8 +38,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ./API/package-lock.json
 
-      # Opcional: limpar node_modules
-      - name: Clean node_modules
+      - name: Clean node_modules (opcional)
         run: rm -rf node_modules
         working-directory: ./API
 
