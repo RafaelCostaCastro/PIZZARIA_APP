@@ -58,7 +58,7 @@ jobs:
         id: package_version
         uses: martinbeentjes/npm-get-version-action@v1.3.1
         with:
-          path: ./API/package.json
+          path: ./API
 
       - name: Show version for debug
         run: echo "Package version is ${{ steps.package_version.outputs.current-version }}"
