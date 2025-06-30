@@ -5,7 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
 const { logtail, logStream } = require('./logStream');
-const { Pool } = require('pg'); // Alterado para pg
+const { Pool } = require('pg');
 const { swaggerUi, swaggerSpec } = require('./swagger');
 
 const app = express();
@@ -21,6 +21,15 @@ app.use(bodyParser.json());
 
 // Morgan configurado para usar o stream personalizado
 app.use(morgan("combined", { stream: logStream }));
+
+// Rota raiz com mensagem JSON amigável
+app.get('/', (req, res) => {
+  res.json({
+    message: "🍕 API da Pizzaria rodando com sucesso!",
+    documentation: "/api-docs",
+    example_endpoint: "/produtos"
+  });
+});
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -271,7 +280,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API da Pizzaria rodando na porta ${PORT}`);
-  // Log de inicialização
   logtail.info(`API da Pizzaria iniciada na porta ${PORT}`);
 });
 
