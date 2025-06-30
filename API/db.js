@@ -1,15 +1,12 @@
-require('dotenv').config({ path: '../.env' });
-console.log('DATABASE_URL:', process.env.DATABASE_URL);
-
-const { Pool } = require('pg');
-
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL não definida. Verifique seu arquivo .env ou as variáveis de ambiente do Docker Compose.');
-}
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: false // Para uso local, não use SSL
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-module.exports = pool;
+// Testar conexão ao iniciar
+pool.query('SELECT NOW()')
+  .then(() => console.log('✅ Banco de dados conectado com sucesso!'))
+  .catch(err => {
+    console.error('❌ Falha na conexão com o banco:', err.message);
+    process.exit(1); // Força saída se o banco não estiver acessível
+  });

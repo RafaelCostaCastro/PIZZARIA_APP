@@ -267,13 +267,17 @@ app.delete('/produtos/:id', async (req, res, next) => {
 
 // Middleware global de tratamento de erros
 app.use((err, req, res, next) => {
-  // Log de erro no BetterStack
-  logtail.error(`[${new Date().toISOString()}] Erro na requisição ${req.method} ${req.originalUrl}: ${err.message}`, {
+  const errorDetails = {
+    message: err.message,
     stack: err.stack,
-    status: err.status || 500
-  });
+    hostname: req.hostname,  // Adicionado
+    path: req.path,           // Adicionado
+    method: req.method        // Adicionado
+  };
   
-  console.error(`[${new Date().toISOString()}] Erro na requisição ${req.method} ${req.originalUrl}:`, err);
+  logtail.error(`[${new Date().toISOString()}] Erro na requisição ${req.method} ${req.originalUrl}: ${err.message}`, errorDetails);
+  
+  console.error('Erro detalhado:', errorDetails);
   res.status(500).json({ error: 'Erro interno do servidor' });
 });
 
